@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Precificação — Grupo MF Paris</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #eef2f7; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 2rem 1rem; }
+  .card { background: #fff; border-radius: 18px; padding: 2rem; max-width: 520px; width: 100%; box-shadow: 0 4px 24px rgba(10,35,120,0.10); }
+  .logo-area { text-align: center; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid #eef2f7; }
+  .logo-text { font-size: 24px; font-weight: 700; color: #0a2378; letter-spacing: 0.5px; }
+  .field { margin-bottom: 1rem; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #444; margin-bottom: 5px; }
+  select { width: 100%; padding: 9px 12px; border: 1.5px solid #dde3ec; border-radius: 8px; font-size: 14px; color: #1a1a1a; background: #fff; transition: border-color .2s; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230a2378' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+  select:focus { outline: none; border-color: #0a2378; box-shadow: 0 0 0 3px rgba(10,35,120,0.10); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .divider { height: 1px; background: #eef2f7; margin: 1.5rem 0; }
+  .result-area { background: #f4f6fb; border-radius: 12px; padding: 1.25rem; }
+  .result-label { font-size: 12px; color: #999; margin-bottom: 12px; min-height: 16px; font-style: italic; }
+  .result-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .result-card { background: #fff; border: 1.5px solid #e8edf3; border-radius: 12px; padding: 1.25rem 1rem; text-align: center; }
+  .result-card.tab-a { border-top: 4px solid #0a2378; }
+  .result-card.tab-b { border-top: 4px solid #c0392b; }
+  .tab-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 8px; }
+  .price { font-size: 28px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.5px; }
+  .empty { text-align: center; padding: 1rem; color: #bbb; font-size: 14px; }
+  .search-wrap { position: relative; }
+  .search-wrap input[type=text] { width: 100%; padding: 9px 12px; border: 1.5px solid #dde3ec; border-radius: 8px 8px 0 0; font-size: 14px; color: #1a1a1a; background: #fff; }
+  .search-wrap input[type=text]:focus { outline: none; border-color: #0a2378; box-shadow: 0 0 0 3px rgba(10,35,120,0.08); }
+  .dropdown { display: none; position: absolute; z-index: 100; width: 100%; background: #fff; border: 1.5px solid #0a2378; border-top: none; border-radius: 0 0 8px 8px; max-height: 220px; overflow-y: auto; }
+  .dropdown.open { display: block; }
+  .dropdown-item { padding: 9px 12px; font-size: 13px; color: #1a1a1a; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+  .dropdown-item:hover, .dropdown-item.active { background: #eef2f7; }
+  .dropdown-item.hidden { display: none; }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } .price { font-size: 24px; } }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo-area"><span class="logo-text">Grupo MF Paris</span></div>
+
+  <div class="field">
+    <label>Produto</label>
+    <div class="search-wrap">
+      <input type="text" id="produto-search" placeholder="Digite para buscar o produto..." autocomplete="off">
+      <div class="dropdown" id="produto-dropdown"></div>
+    </div>
+    <input type="hidden" id="produto-val">
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="frete">Frete</label>
+      <select id="frete">
+        <option value="">Selecione...</option>
+        <option value="0">FOB</option>
+        <option value="1.5">CIF</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="prazo">Prazo de pagamento</label>
+      <select id="prazo"><option value="">Selecione o prazo...</option></select>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="result-area">
+    <div class="result-label" id="result-desc">Preencha os campos acima para calcular</div>
+    <div id="resultado-cards" style="display:none;">
+      <div class="result-cards">
+        <div class="result-card tab-a">
+          <div class="tab-label">Tabela A</div>
+          <div class="price" id="preco-a">—</div>
+        </div>
+        <div class="result-card tab-b">
+          <div class="tab-label">Tabela B</div>
+          <div class="price" id="preco-b">—</div>
+        </div>
+      </div>
+    </div>
+    <div id="resultado-empty" class="empty">Selecione produto, frete e prazo</div>
+  </div>
+</div>
+
+<script>
+const produtos = [
+  {nome:"ACHOCOLATADO CHOCOMINAS CESTA 200G",                              custo:8.662,     comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"ACHOCOLATADO CHOCOMINAS SUPER 200G",                              custo:7.872277,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CACAU MILKSHOW 70% 400G",                                         custo:17.259,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CACAU MILKSHOW PREMIUM 400G",                                     custo:14.559,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE ALMOFADA GM EXTRAFORTE 250G",                                custo:24.4665,   comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE ALMOFADA MOLITO 250G L2002-10",                              custo:11.416496, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE ALMOFADA SEU CAFE EXTRAFORTE 250G",                          custo:11.593107, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 250G L0426",                                  custo:11.419,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 250G L2002",                                  custo:11.572412, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 500G L 1225",                                 custo:29.175465, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 500G L 2225",                                 custo:29.326667, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 500G L 3225",                                 custo:30.62387,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO BELVEDER 500G L3925",                                  custo:30.972565, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 250G L 1325",                                   custo:26.089329, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 250G L 2325",                                   custo:27.769,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 250G L 3325",                                   custo:30.709,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 250G L2002-10",                                 custo:12.004,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 500G L 1325",                                   custo:33.530061, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO MOLITO 500G L 3325",                                   custo:32.167,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO VILLA RICA EXTRAFORTE 250G",                           custo:24.909,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO VILLA RICA SUPERIOR 500G",                             custo:29.345874, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"CAFE VACUO VILLA RICA TRADICIONAL 500G",                          custo:12.004,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO COM MALTODEXTRINA SABOR LEITE 200g",              custo:12.101,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE 1kg PRO",                               custo:15.413747, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE 200G PRO",                              custo:15.469,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE ALIMLAC BAUNILHA 1KG",                  custo:17.209,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE ALIMLAC CHOCOLATE BRANCO 1KG",          custo:17.209,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE ALIMLAC COCO 1KG",                      custo:17.209,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE ALIMLAC MORANGO 1KG",                   custo:17.209,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE COM MALTODEXTRINA 200G",                custo:10.519,    comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"COMPOSTO LACTEO HORIZONTE OKEY LAC 2010 - 25kg",                  custo:11.966253, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"GLUCOSE EM PO - 25KG",                                            custo:6.361442,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO DESNATADO HORIZONTE 400g",                            custo:22.105513, comA:0.015,comB:0.01, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO DESNATADO HORIZONTE SACARIA 25Kg",                    custo:21.602512, comA:0.015,comB:0.01, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 1Kg",                              custo:25.865491, comA:0.015,comB:0.01, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 1kg VITAMINAS A,C,D E MINERAIS",  custo:25.996916, comA:0.015,comB:0.01, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 200g",                             custo:25.674055, comA:0.015,comB:0.01, margA:0.18, margB:0.10},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 200g VITAMINAS A,C,D E MINERAIS", custo:26.209,    comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 400g",                             custo:25.953381, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 400g VITAMINAS A,C,D E MINERAIS", custo:25.862512, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 800g",                             custo:26.043569, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE 800g VITAMINAS A,C,D E MINERAIS", custo:26.209,    comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL HORIZONTE SACARIA 25KG",                     custo:22.048999, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LEITE EM PO INTEGRAL IMPORTADO SACARIA 25Kg",                     custo:24.505215, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LPI IN HORIZONTE 1Kg",                                            custo:26.675174, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LPI IN HORIZONTE 1Kg VITAMINAS A,C,D E MINERAIS",                custo:25.91,     comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LPI IN HORIZONTE 400g",                                           custo:26.552681, comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LPI IN HORIZONTE 400g VITAMINAS A,C,D E MINERAIS",               custo:26.59595,  comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"LPI IN HORIZONTE 800g VITAMINAS A,C,D E MINERAIS",               custo:25.91,     comA:0.015,comB:0.01, margA:0.10, margB:0.06},
+  {nome:"MANIMALTO - MALTODEXTRINA 25KG",                                  custo:6.361483,  comA:0.03, comB:0.02, margA:0.10, margB:0.06},
+  {nome:"NINOLAC 25KG",                                                    custo:12.641,    comA:0.03, comB:0.02, margA:0.10, margB:0.06},
+  {nome:"OKEY LAC ACAI 1 KG",                                              custo:13.340365, comA:0.03, comB:0.02, margA:0.10, margB:0.06},
+  {nome:"OKEY LAC ACAI 25KG",                                              custo:12.193033, comA:0.03, comB:0.02, margA:0.10, margB:0.06},
+  {nome:"OKEY LAC CREAM 25kg",                                             custo:15.54145,  comA:0.03, comB:0.02, margA:0.10, margB:0.06},
+  {nome:"OKEY LAC CREAM PLUS 25kg",                                        custo:14.921303, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"OKEY LAC GOURMET 25KG",                                           custo:11.361633, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"OKEY LAC PANIFICACAO 1KG",                                        custo:10.54501,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"OKEY LAC PANIFICACAO 25KG",                                       custo:9.298476,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"OKEY LAC PRO 25kG",                                               custo:13.068603, comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"PO PARA PREPARO SABOR LEITE DUMONTE 200g",                        custo:8.126464,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"PO PARA PREPARO SABOR LEITE DUMONTE 800g",                        custo:8.23657,   comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"PO PARA PREPARO SABOR LEITE DUMONTE VITAMINADO 200g",             custo:8.089042,  comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"PO PARA PREPARO SABOR LEITE SACARIA 25KG",                        custo:6.901,     comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+  {nome:"SORO DE LEITE EM PO HORIZONTE 25KG",                              custo:7.26,      comA:0.03, comB:0.02, margA:0.18, margB:0.10},
+];
+
+const prazos = [
+  {nome:"À vista",              fidc:0},
+  {nome:"7 dias",               fidc:0.009},
+  {nome:"7/14",                 fidc:0.0125},
+  {nome:"14 dias",              fidc:0.016},
+  {nome:"7/14/21",              fidc:0.016},
+  {nome:"15 dias",              fidc:0.017},
+  {nome:"15/30",                fidc:0.0245},
+  {nome:"21 dias",              fidc:0.023},
+  {nome:"14/21",                fidc:0.0195},
+  {nome:"14/21/28",             fidc:0.023},
+  {nome:"21/28",                fidc:0.0265},
+  {nome:"21/28/35",             fidc:0.030},
+  {nome:"28 dias",              fidc:0.030},
+  {nome:"15/30/45",             fidc:0.032},
+  {nome:"28/35",                fidc:0.0335},
+  {nome:"21/28/35/42",          fidc:0.0335},
+  {nome:"30 dias",              fidc:0.032},
+  {nome:"30/35",                fidc:0.0345},
+  {nome:"28/35/42",             fidc:0.037},
+  {nome:"30/35/42",             fidc:0.0377},
+  {nome:"35 dias",              fidc:0.037},
+  {nome:"21/28/35/42/49",       fidc:0.037},
+  {nome:"30/45",                fidc:0.0395},
+  {nome:"35/42",                fidc:0.0405},
+  {nome:"42 dias",              fidc:0.044},
+  {nome:"21/28/35/42/49/56",    fidc:0.0405},
+  {nome:"45 dias",              fidc:0.047},
+  {nome:"30/60",                fidc:0.047},
+  {nome:"28/35/42/49",          fidc:0.0405},
+  {nome:"35/42/49",             fidc:0.044},
+  {nome:"49 dias",              fidc:0.051},
+  {nome:"42/49/56",             fidc:0.051},
+  {nome:"56 dias",              fidc:0.058},
+  {nome:"45/60",                fidc:0.0545},
+  {nome:"60 dias",              fidc:0.062},
+  {nome:"21/28/35/42/49/56/63", fidc:0.044},
+];
+
+// Busca de produto com dropdown
+const searchInput = document.getElementById('produto-search');
+const dropdown = document.getElementById('produto-dropdown');
+const produtoVal = document.getElementById('produto-val');
+
+produtos.forEach((p, i) => {
+  const div = document.createElement('div');
+  div.className = 'dropdown-item';
+  div.textContent = p.nome;
+  div.dataset.index = i;
+  div.addEventListener('mousedown', () => {
+    searchInput.value = p.nome;
+    produtoVal.value = i;
+    dropdown.classList.remove('open');
+    calcular();
+  });
+  dropdown.appendChild(div);
+});
+
+searchInput.addEventListener('focus', () => dropdown.classList.add('open'));
+searchInput.addEventListener('blur', () => setTimeout(() => dropdown.classList.remove('open'), 150));
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase();
+  produtoVal.value = '';
+  dropdown.classList.add('open');
+  dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+    item.classList.toggle('hidden', !item.textContent.toLowerCase().includes(q));
+  });
+  calcular();
+});
+
+// Prazos
+const selPrazo = document.getElementById('prazo');
+prazos.forEach((p, i) => {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = p.nome;
+  selPrazo.appendChild(o);
+});
+
+function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
+
+function calcular() {
+  const pi = produtoVal.value;
+  const fv = document.getElementById('frete').value;
+  const pri = document.getElementById('prazo').value;
+  const cards = document.getElementById('resultado-cards');
+  const empty = document.getElementById('resultado-empty');
+  if (pi === '' || fv === '' || pri === '') {
+    cards.style.display = 'none'; empty.style.display = 'block';
+    document.getElementById('result-desc').textContent = 'Preencha os campos acima para calcular';
+    return;
+  }
+  const prod = produtos[+pi];
+  const frete = parseFloat(fv);
+  const prazo = prazos[+pri];
+  const precoA = (prod.custo + frete) / (1 - prod.margA - prod.comA - prazo.fidc);
+  const precoB = (prod.custo + frete) / (1 - prod.margB - prod.comB - prazo.fidc);
+  document.getElementById('preco-a').textContent = fmt(precoA);
+  document.getElementById('preco-b').textContent = fmt(precoB);
+  const freteLabel = frete === 0 ? 'FOB' : 'CIF';
+  document.getElementById('result-desc').textContent = prod.nome + ' · ' + freteLabel + ' · ' + prazo.nome;
+  cards.style.display = 'block'; empty.style.display = 'none';
+}
+
+document.getElementById('frete').addEventListener('change', calcular);
+document.getElementById('prazo').addEventListener('change', calcular);
+</script>
+</body>
+</html>
